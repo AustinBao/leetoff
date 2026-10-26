@@ -37,22 +37,6 @@ export async function InstallGlobalCommands(appId, commands) {
 	}
 }
 
-const HELLO_COMMAND = {
-	name: "hello",
-	description: "Say hello",
-	type: 1,
-	integration_types: [0, 1],
-	contexts: [0, 1, 2],
-};
-
-const JOIN_COMMAND = {
-	name: "join",
-	description: "Join the event",
-	type: 1,
-	integration_types: [0, 1],
-	contexts: [0, 1, 2],
-};
-
 const LEADERBOARD_COMMAND = {
 	name: "leaderboard",
 	description: "List the leaderboard",
@@ -61,6 +45,6 @@ const LEADERBOARD_COMMAND = {
 	contexts: [0, 1, 2],
 };
 
-const ALL_COMMANDS = [HELLO_COMMAND, JOIN_COMMAND, LEADERBOARD_COMMAND];
+const ALL_COMMANDS = [LEADERBOARD_COMMAND];
 
 InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);

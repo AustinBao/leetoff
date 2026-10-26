@@ -9,23 +9,14 @@ import {
 	verifyKeyMiddleware,
 } from "discord-interactions";
 
+import { get_user_stats } from "./leetcode.js";
+import db from "./db.js";
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 const WEEKLY_THRESHOLD = 10;
-
-let joined_users = [];
-const scores = { chadder_tough: 14, bustinaao: 9, austin: 11 };
-
-function list_users(users) {
-	let msg = "";
-	let count = 1;
-	for (const user of users) {
-		msg += `${count}. ${user}\n`;
-		count++;
-	}
-	return msg;
-}
+// const user_scores = { chadder_tough: 14, bustinaao: 9, austin: 11 };
+const user_scores = {};
 
 function list_scores(scores) {
 	const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
@@ -46,77 +37,108 @@ function list_scores(scores) {
 	return msg;
 }
 
+function renderLeaderboard(user_scores) {
+	return {
+		flags: InteractionResponseFlags.IS_COMPONENTS_V2,
+		components: [
+			{
+				type: MessageComponentTypes.CONTAINER, // 17
+				accent_color: 0xf2a623, // orange bar on the side
+				components: [
+					{
+						type: MessageComponentTypes.TEXT_DISPLAY,
+						content: `## 🏆 Week 1 · ${WEEKLY_THRESHOLD} Points`,
+					},
+					{ type: MessageComponentTypes.SEPARATOR },
+					{
+						type: MessageComponentTypes.TEXT_DISPLAY,
+						content: list_scores(user_scores) || "No players yet. Hit Join!",
+					},
+					{
+						type: MessageComponentTypes.ACTION_ROW,
+						components: [
+							{
+								type: MessageComponentTypes.BUTTON,
+								style: 1,
+								custom_id: "join",
+								label: "Join",
+							},
+							{
+								type: MessageComponentTypes.BUTTON,
+								style: 2,
+								custom_id: "refresh",
+								label: "Refresh",
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+}
 app.post(
 	"/interactions",
 	verifyKeyMiddleware(process.env.PUBLIC_KEY),
 	async function (req, res) {
 		const { member, type, data } = req.body;
 		const username = member.user.username; // only works in servers since it returns member field
+		const user = member.user;
 
 		if (type == InteractionType.APPLICATION_COMMAND) {
-			if (data.name == "hello") {
-				console.log(InteractionResponseType);
-
-				res.send({
+			if (data.name === "leaderboard") {
+				return res.send({
 					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-					data: { content: `hello, ${member.user.username}` },
+					data: renderLeaderboard(user_scores),
 				});
-			} else if (data.name == "join") {
-				const response = {
-					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-					data: {
-						components: [
-							{
-								type: 1,
-								components: [
-									{
-										type: 2,
-										style: 1,
-										custom_id: "mainjoinbutton",
-										label: `Join`,
-									},
-								],
-							},
-						],
-					},
-				};
-
-				console.log("OUT:", JSON.stringify(response, null, 2));
-
-				res.send(response);
-			} else if (data.name == "leaderboard") {
-				const response = {
-					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-					data: {
-						content: `Week 1 Rankings:\n------------------\n${list_scores(scores)}`,
-						components: [
-							{
-								type: 1,
-								components: [
-									{
-										type: 2,
-										style: 1,
-										custom_id: "refresh",
-										label: `Refresh`,
-									},
-								],
-							},
-						],
-					},
-				};
-
-				console.log("OUT:", JSON.stringify(response, null, 2));
-
-				res.send(response);
 			}
 		}
+		if (type === InteractionType.MODAL_SUBMIT) {
+			const componentId = data.custom_id;
+			if (componentId === "lc_username_modal") {
+				console.log(JSON.stringify(data, null, 2));
+
+				const lcUsername = data.components[0].component.value.trim();
+				const channelId = req.body.channel_id;
+
+				const stats = await get_user_stats(lcUsername);
+				if (!stats) {
+					return followUp(
+						req.body.token,
+						`LeetCode user "${lcUsername}" not found ❌`,
+					);
+				}
+
+				db.prepare(
+					"INSERT OR IGNORE INTO players (channel_id, discord_id, username, leetcode, easy, medium, hard) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				).run(
+					channelId,
+					user.id,
+					user.username,
+					lcUsername,
+					stats.easy,
+					stats.medium,
+					stats.hard,
+				);
+
+				const players = db
+					.prepare("SELECT * FROM players WHERE channel_id = ?")
+					.all(channelId);
+
+				return res.send({
+					type: InteractionResponseType.UPDATE_MESSAGE,
+					data: renderLeaderboard(players),
+				});
+			}
+		}
+
 		// handles all message component interactions
 		if (type === InteractionType.MESSAGE_COMPONENT) {
 			const componentId = data.custom_id;
 
-			// handle the join button request (or all message component interactions)
-			if (componentId === "mainjoinbutton") {
-				if (joined_users.includes(username)) {
+			if (componentId === "join") {
+				const channelId = req.body.channel_id;
+
+				if (username in user_scores) {
 					return res.send({
 						type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
 						data: {
@@ -125,52 +147,32 @@ app.post(
 						},
 					});
 				}
-
-				joined_users.push(username);
-
-				// Send results
+				// SHOULD OPEN A MODAL HERE
 				return res.send({
-					type: InteractionResponseType.UPDATE_MESSAGE,
+					type: InteractionResponseType.MODAL,
 					data: {
-						content: `${username} joined! \n current joined users: \n ${list_users(joined_users)}`,
-
+						custom_id: "lc_username_modal",
+						title: "Link your LeetCode",
 						components: [
 							{
-								type: 1,
-								components: [
-									{
-										type: 2,
-										style: 1,
-										custom_id: "mainjoinbutton",
-										label: `Join us`,
-									},
-								],
+								type: 18, // Label
+								label: "LeetCode username",
+								component: {
+									type: 4, // Text input
+									custom_id: "lc_username",
+									style: 1, // short, single line
+									required: true,
+								},
 							},
 						],
 					},
 				});
 			}
 			if (componentId === "refresh") {
-				scores.bustinaao += 1;
-
+				user_scores.bustinaao += 1;
 				return res.send({
 					type: InteractionResponseType.UPDATE_MESSAGE,
-					data: {
-						content: `Week 1 Rankings:\n------------------\n${list_scores(scores)}`,
-						components: [
-							{
-								type: 1,
-								components: [
-									{
-										type: 2,
-										style: 1,
-										custom_id: "refresh",
-										label: `Refresh`,
-									},
-								],
-							},
-						],
-					},
+					data: renderLeaderboard(user_scores),
 				});
 			}
 		}
