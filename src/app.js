@@ -12,14 +12,35 @@ import {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const WEEKLY_THRESHOLD = 10;
+
 let joined_users = [];
+const scores = { chadder_tough: 14, bustinaao: 9, austin: 11 };
 
 function list_users(users) {
 	let msg = "";
 	let count = 1;
 	for (const user of users) {
-		console.log(user);
 		msg += `${count}. ${user}\n`;
+		count++;
+	}
+	return msg;
+}
+
+function list_scores(scores) {
+	const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+	console.log(sorted);
+
+	let msg = "";
+	let count = 1;
+	for (const score of sorted) {
+		let pass = "";
+		if (score[1] >= WEEKLY_THRESHOLD) {
+			pass = "✅";
+		} else {
+			pass = "❌";
+		}
+		msg += `${count}. ${score[0]} - ${score[1]} ${pass}\n`;
 		count++;
 	}
 	return msg;
@@ -52,7 +73,31 @@ app.post(
 										type: 2,
 										style: 1,
 										custom_id: "mainjoinbutton",
-										label: `join us, ${username}`,
+										label: `Join`,
+									},
+								],
+							},
+						],
+					},
+				};
+
+				console.log("OUT:", JSON.stringify(response, null, 2));
+
+				res.send(response);
+			} else if (data.name == "leaderboard") {
+				const response = {
+					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+					data: {
+						content: `Week 1 Rankings:\n------------------\n${list_scores(scores)}`,
+						components: [
+							{
+								type: 1,
+								components: [
+									{
+										type: 2,
+										style: 1,
+										custom_id: "refresh",
+										label: `Refresh`,
 									},
 								],
 							},
@@ -98,6 +143,29 @@ app.post(
 										style: 1,
 										custom_id: "mainjoinbutton",
 										label: `Join us`,
+									},
+								],
+							},
+						],
+					},
+				});
+			}
+			if (componentId === "refresh") {
+				scores.bustinaao += 1;
+
+				return res.send({
+					type: InteractionResponseType.UPDATE_MESSAGE,
+					data: {
+						content: `Week 1 Rankings:\n------------------\n${list_scores(scores)}`,
+						components: [
+							{
+								type: 1,
+								components: [
+									{
+										type: 2,
+										style: 1,
+										custom_id: "refresh",
+										label: `Refresh`,
 									},
 								],
 							},
