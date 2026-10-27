@@ -107,6 +107,20 @@ app.post(
 						`LeetCode user "${lcUsername}" not found ❌`,
 					);
 				}
+				const submissions =
+					stats.data.matchedUser.submitStatsGlobal.acSubmissionNum;
+				let easy = 0;
+				let medium = 0;
+				let hard = 0;
+				for (const submission of submissions) {
+					if (submission.difficulty === "Easy") {
+						easy = submission.count;
+					} else if (submission.difficulty === "Medium") {
+						medium = submission.count;
+					} else if (submission.difficulty === "Hard") {
+						hard = submission.count;
+					}
+				}
 
 				db.prepare(
 					"INSERT OR IGNORE INTO players (channel_id, discord_id, username, leetcode, easy, medium, hard) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -115,18 +129,22 @@ app.post(
 					user.id,
 					user.username,
 					lcUsername,
-					stats.easy,
-					stats.medium,
-					stats.hard,
+					easy,
+					medium,
+					hard,
 				);
 
 				const players = db
 					.prepare("SELECT * FROM players WHERE channel_id = ?")
 					.all(channelId);
+				console.log(players);
+
+				user_scores[username] = easy + medium * 3 + hard * 6;
+				console.log(user_scores);
 
 				return res.send({
 					type: InteractionResponseType.UPDATE_MESSAGE,
-					data: renderLeaderboard(players),
+					data: renderLeaderboard(user_scores),
 				});
 			}
 		}
@@ -156,7 +174,7 @@ app.post(
 						components: [
 							{
 								type: 18, // Label
-								label: "LeetCode username",
+								label: "Enter LeetCode Username",
 								component: {
 									type: 4, // Text input
 									custom_id: "lc_username",
