@@ -9,35 +9,50 @@ import {
 	verifyKeyMiddleware,
 } from "discord-interactions";
 
-import { get_user_stats } from "./leetcode.js";
-import db from "./db.js";
+import { get_user_stats, get_counts, get_live_stats } from "./leetcode.js";
+import {
+	db,
+	get_user,
+	save_user,
+	get_or_create_game,
+	get_player,
+	add_player,
+	get_players,
+	save_points,
+	end_week,
+} from "./db.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const WEEKLY_THRESHOLD = 10;
-// const user_scores = { chadder_tough: 14, bustinaao: 9, austin: 11 };
-const user_scores = {};
 
-function list_scores(scores) {
-	const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-	console.log(sorted);
+function list_scores(players, live_stats) {
+	const scores = [];
+	for (const player of players) {
+		const live_counts = live_stats[player.discord_id];
+		const start_total = player.easy + player.medium * 3 + player.hard * 6;
+		const new_total =
+			live_counts.easy + live_counts.medium * 3 + live_counts.hard * 6;
+		scores.push({ name: player.username, points: new_total - start_total });
+	}
+	scores.sort((a, b) => b.points - a.points);
 
 	let msg = "";
 	let count = 1;
-	for (const score of sorted) {
+	for (const score of scores) {
 		let pass = "";
-		if (score[1] >= WEEKLY_THRESHOLD) {
+		if (score.points >= WEEKLY_THRESHOLD) {
 			pass = "✅";
 		} else {
 			pass = "❌";
 		}
-		msg += `${count}. ${score[0]} - ${score[1]} ${pass}\n`;
+		msg += `${count}. ${score.name} - ${score.points} ${pass}\n`;
 		count++;
 	}
 	return msg;
 }
 
-function renderLeaderboard(user_scores) {
+function render_leaderboard(players, live_stats) {
 	return {
 		flags: InteractionResponseFlags.IS_COMPONENTS_V2,
 		components: [
@@ -52,7 +67,8 @@ function renderLeaderboard(user_scores) {
 					{ type: MessageComponentTypes.SEPARATOR },
 					{
 						type: MessageComponentTypes.TEXT_DISPLAY,
-						content: list_scores(user_scores) || "No players yet. Hit Join!",
+						content:
+							list_scores(players, live_stats) || "No players yet. Hit Join!",
 					},
 					{
 						type: MessageComponentTypes.ACTION_ROW,
@@ -83,20 +99,21 @@ app.post(
 		const { member, type, data } = req.body;
 		const username = member.user.username; // only works in servers since it returns member field
 		const user = member.user;
+		const channelId = req.body.channel_id;
 
 		if (type == InteractionType.APPLICATION_COMMAND) {
 			if (data.name === "leaderboard") {
+				const players = get_players(channelId);
+				const live_stats = await get_live_stats(players);
 				return res.send({
 					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-					data: renderLeaderboard(user_scores),
+					data: render_leaderboard(players, live_stats),
 				});
 			}
 		}
 		if (type === InteractionType.MODAL_SUBMIT) {
 			const componentId = data.custom_id;
 			if (componentId === "lc_username_modal") {
-				console.log(JSON.stringify(data, null, 2));
-
 				const lcUsername = data.components[0].component.value.trim();
 				const channelId = req.body.channel_id;
 
@@ -121,30 +138,17 @@ app.post(
 						hard = submission.count;
 					}
 				}
+				save_user(user.id, user.username, lcUsername);
+				get_or_create_game(channelId);
+				add_player(channelId, user.id, easy, medium, hard);
 
-				db.prepare(
-					"INSERT OR IGNORE INTO players (channel_id, discord_id, username, leetcode, easy, medium, hard) VALUES (?, ?, ?, ?, ?, ?, ?)",
-				).run(
-					channelId,
-					user.id,
-					user.username,
-					lcUsername,
-					easy,
-					medium,
-					hard,
-				);
-
-				const players = db
-					.prepare("SELECT * FROM players WHERE channel_id = ?")
-					.all(channelId);
+				const players = get_players(channelId);
 				console.log(players);
-
-				user_scores[username] = easy + medium * 3 + hard * 6;
-				console.log(user_scores);
+				const live_stats = await get_live_stats(players);
 
 				return res.send({
 					type: InteractionResponseType.UPDATE_MESSAGE,
-					data: renderLeaderboard(user_scores),
+					data: render_leaderboard(players, live_stats),
 				});
 			}
 		}
@@ -152,11 +156,10 @@ app.post(
 		// handles all message component interactions
 		if (type === InteractionType.MESSAGE_COMPONENT) {
 			const componentId = data.custom_id;
-
+			const channelId = req.body.channel_id;
 			if (componentId === "join") {
-				const channelId = req.body.channel_id;
-
-				if (username in user_scores) {
+				const players = get_players(channelId);
+				if (username in players) {
 					return res.send({
 						type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
 						data: {
@@ -165,7 +168,7 @@ app.post(
 						},
 					});
 				}
-				// SHOULD OPEN A MODAL HERE
+				// OPEN MODAL HERE
 				return res.send({
 					type: InteractionResponseType.MODAL,
 					data: {
@@ -187,10 +190,11 @@ app.post(
 				});
 			}
 			if (componentId === "refresh") {
-				user_scores.bustinaao += 1;
+				const players = get_players(channelId);
+				const live_stats = await get_live_stats(players);
 				return res.send({
 					type: InteractionResponseType.UPDATE_MESSAGE,
-					data: renderLeaderboard(user_scores),
+					data: render_leaderboard(players, live_stats),
 				});
 			}
 		}

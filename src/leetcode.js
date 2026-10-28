@@ -21,3 +21,26 @@ export async function get_user_stats(username) {
 	console.log(JSON.stringify(await json, null, 2));
 	return json;
 }
+
+export async function get_counts(lcUsername) {
+	const stats = await get_user_stats(lcUsername);
+	const user = stats?.data?.matchedUser;
+	if (!user) return null; // user doesn't exist
+
+	const counts = { easy: 0, medium: 0, hard: 0 };
+	for (const s of user.submitStatsGlobal.acSubmissionNum) {
+		if (s.difficulty === "Easy") counts.easy = s.count;
+		else if (s.difficulty === "Medium") counts.medium = s.count;
+		else if (s.difficulty === "Hard") counts.hard = s.count;
+	}
+	return counts;
+}
+
+// might require async in future to avoid discord's 3 sec rule
+export async function get_live_stats(players) {
+	const live = {};
+	for (const player of players) {
+		live[player.discord_id] = await get_counts(player.leetcode);
+	}
+	return live;
+}
