@@ -45,6 +45,15 @@ const LEADERBOARD_COMMAND = {
 	contexts: [0, 1, 2],
 };
 
-const ALL_COMMANDS = [LEADERBOARD_COMMAND];
+const RANDOM_COMMAND = {
+	name: "random",
+	description: "Try a random problem",
+	type: 1,
+	integration_types: [0, 1],
+	contexts: [0, 1, 2],
+};
+
+
+const ALL_COMMANDS = [LEADERBOARD_COMMAND, RANDOM_COMMAND];
 
 InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);
