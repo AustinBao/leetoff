@@ -31,6 +31,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const WEEKLY_THRESHOLD = 10;
 
+const DIFFICULTY_COLOR = {
+	Easy: 0x2ecc71,
+	Medium: 0xffc01e,
+	Hard: 0xff375f,
+};
+
 function list_scores(players, live_stats) {
 	const scores = [];
 	for (const player of players) {
@@ -63,7 +69,7 @@ function render_leaderboard(players, live_stats) {
 		components: [
 			{
 				type: MessageComponentTypes.CONTAINER, // 17
-				accent_color: 0xf2a623, // orange bar on the side
+				accent_color: 0xff7a00, // orange bar on the side
 				components: [
 					{
 						type: MessageComponentTypes.TEXT_DISPLAY,
@@ -98,35 +104,66 @@ function render_leaderboard(players, live_stats) {
 	};
 }
 
-function render_random_question(problem, difficulty) {
-	const title = problem
-		? `${problem.difficulty} problem: **${problem.title}**`
-		: "Couldn't fetch a problem from LeetCode ❌";
+function render_random_question(problem, difficulty, username) {
+	const reroll_button = {
+		type: MessageComponentTypes.BUTTON,
+		style: ButtonStyleTypes.SECONDARY,
+		custom_id: `reroll_${difficulty}`,
+		label: "Reroll",
+		emoji: { name: "🎲" },
+	};
+
+	if (!problem) {
+		return {
+			flags: InteractionResponseFlags.IS_COMPONENTS_V2,
+			components: [
+				{
+					type: MessageComponentTypes.CONTAINER,
+					accent_color: 0x808080, // gray bar for errors
+					components: [
+						{
+							type: MessageComponentTypes.TEXT_DISPLAY,
+							content: "Couldn't fetch a problem from LeetCode ❌",
+						},
+						{
+							type: MessageComponentTypes.ACTION_ROW,
+							components: [reroll_button],
+						},
+					],
+				},
+			],
+		};
+	}
+
+	const tags = problem.topicTags.map((tag) => `\`${tag.name}\``).join(" ");
+	const details = `-# ${problem.difficulty} · ${problem.acRate.toFixed(1)}% acceptance · rolled by ${username}`;
+
 	return {
 		flags: InteractionResponseFlags.IS_COMPONENTS_V2,
 		components: [
 			{
-				type: MessageComponentTypes.CONTAINER, // 17
-				accent_color: 0xf2a623, // orange bar on the side
+				type: MessageComponentTypes.CONTAINER,
+				accent_color: DIFFICULTY_COLOR[problem.difficulty], // bar colored by difficulty
 				components: [
 					{
 						type: MessageComponentTypes.TEXT_DISPLAY,
-						content: title,
+						content: `### [${problem.questionFrontendId}. ${problem.title}](${problem.url})`,
 					},
 					{ type: MessageComponentTypes.SEPARATOR },
 					{
 						type: MessageComponentTypes.TEXT_DISPLAY,
-						content: problem?.url ?? "No problem to display",
+						content: tags ? `${tags}\n${details}` : details,
 					},
 					{
 						type: MessageComponentTypes.ACTION_ROW,
 						components: [
 							{
 								type: MessageComponentTypes.BUTTON,
-								style: ButtonStyleTypes.PRIMARY,
-								custom_id: `reroll_${difficulty}`,
-								label: "Reroll",
+								style: ButtonStyleTypes.LINK,
+								url: problem.url,
+								label: "Open on LeetCode",
 							},
+							reroll_button,
 						],
 					},
 				],
@@ -160,7 +197,7 @@ app.post(
 				const problem = await get_random_problem(difficulty);
 				return res.send({
 					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-					data: render_random_question(problem, difficulty),
+					data: render_random_question(problem, difficulty, username),
 				});
 			}
 		}
@@ -215,7 +252,7 @@ app.post(
 				const problem = await get_random_problem(difficulty);
 				return res.send({
 					type: InteractionResponseType.UPDATE_MESSAGE, // replace the problem in place
-					data: render_random_question(problem, difficulty),
+					data: render_random_question(problem, difficulty, username),
 				});
 			}
 			if (componentId === "join") {

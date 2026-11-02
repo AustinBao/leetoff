@@ -49,7 +49,8 @@ export async function get_random_problem(difficulty) {
 	const query = `
 	query ($categorySlug: String, $filters: QuestionListFilterInput) {
 		randomQuestion(categorySlug: $categorySlug, filters: $filters) {
-			title titleSlug difficulty
+			questionFrontendId title titleSlug difficulty acRate
+			topicTags { name }
 		}
 	}`;
 
