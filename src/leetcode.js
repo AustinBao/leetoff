@@ -44,3 +44,31 @@ export async function get_live_stats(players) {
 	}
 	return live;
 }
+
+export async function get_random_problem(difficulty) {
+	const query = `
+	query ($categorySlug: String, $filters: QuestionListFilterInput) {
+		randomQuestion(categorySlug: $categorySlug, filters: $filters) {
+			title titleSlug difficulty
+		}
+	}`;
+
+	const r = await fetch("https://leetcode.com/graphql", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Referer: "https://leetcode.com",
+		},
+		body: JSON.stringify({
+			query,
+			variables: {
+				categorySlug: "",
+				filters: { difficulty: difficulty.toUpperCase() },
+			},
+		}),
+	});
+	const json = await r.json();
+	const q = json?.data?.randomQuestion;
+	if (!q) return null; // fetching problem failed
+	return { ...q, url: `https://leetcode.com/problems/${q.titleSlug}/` };
+}

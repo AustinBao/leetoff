@@ -9,7 +9,12 @@ import {
 	verifyKeyMiddleware,
 } from "discord-interactions";
 
-import { get_user_stats, get_counts, get_live_stats } from "./leetcode.js";
+import {
+	get_user_stats,
+	get_counts,
+	get_live_stats,
+	get_random_problem,
+} from "./leetcode.js";
 import {
 	db,
 	get_user,
@@ -92,6 +97,44 @@ function render_leaderboard(players, live_stats) {
 		],
 	};
 }
+
+function render_random_question(problem, difficulty) {
+	const title = problem
+		? `${problem.difficulty} problem: **${problem.title}**`
+		: "Couldn't fetch a problem from LeetCode ❌";
+	return {
+		flags: InteractionResponseFlags.IS_COMPONENTS_V2,
+		components: [
+			{
+				type: MessageComponentTypes.CONTAINER, // 17
+				accent_color: 0xf2a623, // orange bar on the side
+				components: [
+					{
+						type: MessageComponentTypes.TEXT_DISPLAY,
+						content: title,
+					},
+					{ type: MessageComponentTypes.SEPARATOR },
+					{
+						type: MessageComponentTypes.TEXT_DISPLAY,
+						content: problem?.url ?? "No problem to display",
+					},
+					{
+						type: MessageComponentTypes.ACTION_ROW,
+						components: [
+							{
+								type: MessageComponentTypes.BUTTON,
+								style: ButtonStyleTypes.PRIMARY,
+								custom_id: `reroll_${difficulty}`,
+								label: "Reroll",
+							},
+						],
+					},
+				],
+			},
+		],
+	};
+}
+
 app.post(
 	"/interactions",
 	verifyKeyMiddleware(process.env.PUBLIC_KEY),
@@ -108,6 +151,16 @@ app.post(
 				return res.send({
 					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
 					data: render_leaderboard(players, live_stats),
+				});
+			}
+			if (data.name === "random") {
+				const difficulty = data.options.find(
+					(opt) => opt.name === "difficulty",
+				).value;
+				const problem = await get_random_problem(difficulty);
+				return res.send({
+					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+					data: render_random_question(problem, difficulty),
 				});
 			}
 		}
@@ -157,6 +210,14 @@ app.post(
 		if (type === InteractionType.MESSAGE_COMPONENT) {
 			const componentId = data.custom_id;
 			const channelId = req.body.channel_id;
+			if (componentId.startsWith("reroll_")) {
+				const difficulty = componentId.slice("reroll_".length);
+				const problem = await get_random_problem(difficulty);
+				return res.send({
+					type: InteractionResponseType.UPDATE_MESSAGE, // replace the problem in place
+					data: render_random_question(problem, difficulty),
+				});
+			}
 			if (componentId === "join") {
 				const players = get_players(channelId);
 				if (username in players) {

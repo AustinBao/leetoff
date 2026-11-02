@@ -51,8 +51,20 @@ const RANDOM_COMMAND = {
 	type: 1,
 	integration_types: [0, 1],
 	contexts: [0, 1, 2],
+	options: [
+		{
+			type: 3, // STRING
+			name: "difficulty",
+			description: "Problem difficulty",
+			required: true,
+			choices: [
+				{ name: "Easy", value: "easy" },
+				{ name: "Medium", value: "medium" },
+				{ name: "Hard", value: "hard" },
+			],
+		},
+	],
 };
-
 
 const ALL_COMMANDS = [LEADERBOARD_COMMAND, RANDOM_COMMAND];
 

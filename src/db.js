@@ -1,7 +1,7 @@
 // src/db.js
 import Database from "better-sqlite3";
 
-const db = new Database("leetoff.db");
+const db = new Database("leeterboard.db");
 db.pragma("foreign_keys = ON");
 
 db.exec(`
