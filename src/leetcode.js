@@ -40,7 +40,15 @@ export async function get_counts(lcUsername) {
 export async function get_live_stats(players) {
 	const live = {};
 	for (const player of players) {
-		live[player.discord_id] = await get_counts(player.leetcode);
+		try {
+			live[player.discord_id] = await get_counts(player.leetcode);
+		} catch (err) {
+			console.error(
+				`Couldn't fetch stats for ${player.leetcode}:`,
+				err.message,
+			);
+			live[player.discord_id] = null;
+		}
 	}
 	return live;
 }

@@ -9,12 +9,7 @@ import {
 	verifyKeyMiddleware,
 } from "discord-interactions";
 
-import {
-	get_user_stats,
-	get_counts,
-	get_live_stats,
-	get_random_problem,
-} from "./leetcode.js";
+import { get_counts, get_live_stats, get_random_problem } from "./leetcode.js";
 import {
 	db,
 	get_user,
@@ -41,6 +36,10 @@ function list_scores(players, live_stats) {
 	const scores = [];
 	for (const player of players) {
 		const live_counts = live_stats[player.discord_id];
+		if (!live_counts) {
+			scores.push({ name: player.username, points: 0 });
+			continue;
+		}
 		const start_total = player.easy + player.medium * 3 + player.hard * 6;
 		const new_total =
 			live_counts.easy + live_counts.medium * 3 + live_counts.hard * 6;
@@ -207,30 +206,19 @@ app.post(
 				const lcUsername = data.components[0].component.value.trim();
 				const channelId = req.body.channel_id;
 
-				const stats = await get_user_stats(lcUsername);
-				if (!stats) {
-					return followUp(
-						req.body.token,
-						`LeetCode user "${lcUsername}" not found ❌`,
-					);
-				}
-				const submissions =
-					stats.data.matchedUser.submitStatsGlobal.acSubmissionNum;
-				let easy = 0;
-				let medium = 0;
-				let hard = 0;
-				for (const submission of submissions) {
-					if (submission.difficulty === "Easy") {
-						easy = submission.count;
-					} else if (submission.difficulty === "Medium") {
-						medium = submission.count;
-					} else if (submission.difficulty === "Hard") {
-						hard = submission.count;
-					}
+				const counts = await get_counts(lcUsername);
+				if (!counts) {
+					return res.send({
+						type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+						data: {
+							content: `LeetCode user "${lcUsername}" not found ❌`,
+							flags: InteractionResponseFlags.EPHEMERAL,
+						},
+					});
 				}
 				save_user(user.id, user.username, lcUsername);
 				get_or_create_game(channelId);
-				add_player(channelId, user.id, easy, medium, hard);
+				add_player(channelId, user.id, counts.easy, counts.medium, counts.hard);
 
 				const players = get_players(channelId);
 				console.log(players);
@@ -257,7 +245,7 @@ app.post(
 			}
 			if (componentId === "join") {
 				const players = get_players(channelId);
-				if (username in players) {
+				if (players.some((p) => p.discord_id === user.id)) {
 					return res.send({
 						type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
 						data: {
@@ -296,6 +284,14 @@ app.post(
 				});
 			}
 		}
+
+		// no interaction matched
+		console.error(
+			"Unhandled interaction:",
+			type,
+			data?.name ?? data?.custom_id,
+		);
+		return res.status(400).json({ error: "unknown interaction" });
 	},
 );
 
