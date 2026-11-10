@@ -209,6 +209,28 @@ function render_random_question(problem, difficulty, username) {
 	};
 }
 
+function get_random_difficuly(easy, medium, hard) {
+	if (easy + medium + hard != 1) {
+		console.error("difficulty weights don't add up to 1.");
+		return res.status(400);
+	}
+	const DIFFICULTY_WEIGHTS = [
+		{ name: "easy", weight: easy },
+		{ name: "medium", weight: medium },
+		{ name: "hard", weight: hard },
+	];
+	const random = Math.random(); // 0 - 1
+	let cumulativeWeight = 0;
+	for (const item of DIFFICULTY_WEIGHTS) {
+		cumulativeWeight += item.weight;
+		if (random <= cumulativeWeight) {
+			return item.name;
+		}
+	}
+}
+const DAILY_DIFFICULTY = await get_random_difficuly(0.2, 0.6, 0.2);
+const DAILY_PROBLEM = await get_random_problem(DAILY_DIFFICULTY);
+
 app.post(
 	"/interactions",
 	verifyKeyMiddleware(process.env.PUBLIC_KEY),
@@ -226,6 +248,16 @@ app.post(
 				return res.send({
 					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
 					data: render_leaderboard(players, live_stats, game),
+				});
+			}
+			if (data.name === "daily") {
+				return res.send({
+					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+					data: render_random_question(
+						DAILY_PROBLEM,
+						DAILY_DIFFICULTY,
+						username,
+					),
 				});
 			}
 			if (data.name === "random") {
