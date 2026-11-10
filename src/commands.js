@@ -39,7 +39,7 @@ export async function InstallGlobalCommands(appId, commands) {
 
 const LEADERBOARD_COMMAND = {
 	name: "leaderboard",
-	description: "List the leaderboard",
+	description: "Show the leaderboard",
 	type: 1,
 	integration_types: [0, 1],
 	contexts: [0, 1, 2],
@@ -66,6 +66,14 @@ const RANDOM_COMMAND = {
 	],
 };
 
-const ALL_COMMANDS = [LEADERBOARD_COMMAND, RANDOM_COMMAND];
+const DAILY = {
+	name: "daily",
+	description: "Todays leetcode question",
+	type: 1,
+	integration_types: [0, 1],
+	contexts: [0, 1, 2],
+};
+
+const ALL_COMMANDS = [LEADERBOARD_COMMAND, RANDOM_COMMAND, DAILY];
 
 InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);

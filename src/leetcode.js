@@ -18,7 +18,6 @@ export async function get_user_stats(username) {
 		body: JSON.stringify({ query, variables: { u: username } }),
 	});
 	const json = await r.json();
-	console.log(JSON.stringify(await json, null, 2));
 	return json;
 }
 

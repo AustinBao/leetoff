@@ -32,37 +32,70 @@ const DIFFICULTY_COLOR = {
 	Hard: 0xff375f,
 };
 
-function list_scores(players, live_stats) {
+function render_progress_bar(score) {
+	const filled = Math.max(0, Math.min(score.points, WEEKLY_THRESHOLD));
+	let bar = "▰".repeat(filled) + "▱".repeat(WEEKLY_THRESHOLD - filled);
+	bar += score.easy != 0 ? ` · ${score.easy}E` : ``;
+	bar += score.medium != 0 ? ` · ${score.medium}M` : ``;
+	bar += score.hard != 0 ? ` · ${score.hard}H` : ``;
+	return bar;
+}
+
+function get_scores(players, live_stats) {
 	const scores = [];
 	for (const player of players) {
-		const live_counts = live_stats[player.discord_id];
-		if (!live_counts) {
+		const live = live_stats[player.discord_id];
+		if (!live) {
 			scores.push({ name: player.username, points: 0 });
 			continue;
 		}
 		const start_total = player.easy + player.medium * 3 + player.hard * 6;
-		const new_total =
-			live_counts.easy + live_counts.medium * 3 + live_counts.hard * 6;
-		scores.push({ name: player.username, points: new_total - start_total });
+		const new_total = live.easy + live.medium * 3 + live.hard * 6;
+		scores.push({
+			name: player.username,
+			points: new_total - start_total,
+			easy: live.easy - player.easy,
+			medium: live.medium - player.medium,
+			hard: live.hard - player.hard,
+		});
 	}
 	scores.sort((a, b) => b.points - a.points);
+	return scores;
+}
 
+function list_scores(players, live_stats) {
+	const scores = get_scores(players, live_stats);
 	let msg = "";
 	let count = 1;
 	for (const score of scores) {
-		let pass = "";
-		if (score.points >= WEEKLY_THRESHOLD) {
-			pass = "✅";
-		} else {
-			pass = "❌";
-		}
-		msg += `${count}. ${score.name} - ${score.points} ${pass}\n`;
+		msg += `${count}. **${score.name}** · ${score.points} ${score.points === 1 ? "pt" : "pts"}\n`;
+		msg += `-# ${render_progress_bar(score)}\n\n`;
 		count++;
 	}
 	return msg;
 }
 
-function render_leaderboard(players, live_stats) {
+function num_of_green_players(players, live_stats, game) {
+	const threshold = game.threshold;
+	const scores = get_scores(players, live_stats);
+	let green_count = 0;
+	for (const score of scores) {
+		green_count += score >= threshold;
+	}
+	return green_count;
+}
+
+function num_of_days_passed(game) {
+	const week_start = game.week_start;
+	const now = Math.floor(Date.now() / 1000);
+	const seconds_passed = now - week_start;
+	const days_passed = Math.floor(seconds_passed / 86400);
+	return Math.max(0, days_passed);
+}
+
+function render_leaderboard(players, live_stats, game) {
+	const green_count = num_of_green_players(players, live_stats, game);
+	const days_passed = num_of_days_passed(game);
 	return {
 		flags: InteractionResponseFlags.IS_COMPONENTS_V2,
 		components: [
@@ -72,7 +105,11 @@ function render_leaderboard(players, live_stats) {
 				components: [
 					{
 						type: MessageComponentTypes.TEXT_DISPLAY,
-						content: `## 🏆 Week 1 · ${WEEKLY_THRESHOLD} Points`,
+						content: `### 📊  Leaderboard `,
+					},
+					{
+						type: MessageComponentTypes.TEXT_DISPLAY,
+						content: `-# Week started ${days_passed} days ago · goal ${game.threshold} pts · ${green_count}/${players.length} on track`,
 					},
 					{ type: MessageComponentTypes.SEPARATOR },
 					{
@@ -80,6 +117,7 @@ function render_leaderboard(players, live_stats) {
 						content:
 							list_scores(players, live_stats) || "No players yet. Hit Join!",
 					},
+					{ type: MessageComponentTypes.SEPARATOR },
 					{
 						type: MessageComponentTypes.ACTION_ROW,
 						components: [
@@ -184,9 +222,10 @@ app.post(
 			if (data.name === "leaderboard") {
 				const players = get_players(channelId);
 				const live_stats = await get_live_stats(players);
+				const game = get_or_create_game(channelId);
 				return res.send({
 					type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-					data: render_leaderboard(players, live_stats),
+					data: render_leaderboard(players, live_stats, game),
 				});
 			}
 			if (data.name === "random") {
@@ -221,12 +260,12 @@ app.post(
 				add_player(channelId, user.id, counts.easy, counts.medium, counts.hard);
 
 				const players = get_players(channelId);
-				console.log(players);
 				const live_stats = await get_live_stats(players);
+				const game = get_or_create_game(channelId);
 
 				return res.send({
 					type: InteractionResponseType.UPDATE_MESSAGE,
-					data: render_leaderboard(players, live_stats),
+					data: render_leaderboard(players, live_stats, game),
 				});
 			}
 		}
@@ -235,6 +274,12 @@ app.post(
 		if (type === InteractionType.MESSAGE_COMPONENT) {
 			const componentId = data.custom_id;
 			const channelId = req.body.channel_id;
+
+			const games = get_or_create_game(channelId);
+			console.log(games);
+			const players = get_players(channelId);
+			console.log(players);
+
 			if (componentId.startsWith("reroll_")) {
 				const difficulty = componentId.slice("reroll_".length);
 				const problem = await get_random_problem(difficulty);
@@ -278,9 +323,10 @@ app.post(
 			if (componentId === "refresh") {
 				const players = get_players(channelId);
 				const live_stats = await get_live_stats(players);
+				const game = get_or_create_game(channelId);
 				return res.send({
 					type: InteractionResponseType.UPDATE_MESSAGE,
-					data: render_leaderboard(players, live_stats),
+					data: render_leaderboard(players, live_stats, game),
 				});
 			}
 		}
