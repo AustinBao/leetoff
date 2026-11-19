@@ -22,8 +22,28 @@ import {
 	end_week,
 } from "./db.js";
 
+import { Temporal } from 'temporal-polyfill';
+
+function is_new_day(last_date) {
+	const today = Temporal.Now.plainDateISO()
+	const previous = Temporal.PlainDate.from(last_date)
+	return Temporal.PlainDate.compare(today, previous) > 0; // either -1, 0, or 1
+}
+console.log(is_new_day('2026-11-17'))
+
+
+function is_new_week(game_start) {
+	const today = Temporal.Now.plainDateISO()
+	const start_date = Temporal.PlainDate.from(game_start)
+	const daysPassed = today.since(start_date).days
+	return daysPassed >= 7;
+}
+console.log(is_new_week('2026-11-13'))
+
+// Temporal.Now.plainDateISO().toString()
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3002;
 const WEEKLY_THRESHOLD = 10;
 
 const DIFFICULTY_COLOR = {
