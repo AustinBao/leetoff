@@ -2,11 +2,12 @@
 	"name": "leeterboard",
 	"version": "1.0.0",
 	"description": "",
-	"main": "index.js",
+	"main": "src/app.ts",
 	"scripts": {
-		"start": "node src/app.js",
-		"dev": "node --watch src/app.js",
-		"register": "node src/commands.js"
+		"start": "node src/app.ts",
+		"dev": "node --watch src/app.ts",
+		"register": "node src/commands.ts",
+		"typecheck": "tsc"
 	},
 	"keywords": [],
 	"author": "",
@@ -18,5 +19,11 @@
 		"dotenv": "^18.0.9",
 		"express": "^5.3.0",
 		"temporal-polyfill": "^1.0.8"
+	},
+	"devDependencies": {
+		"@types/better-sqlite3": "^9.6.0",
+		"@types/express": "^5.0.6",
+		"@types/node": "^26.6.6",
+		"typescript": "^7.0.2"
 	}
 }

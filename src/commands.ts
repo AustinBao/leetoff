@@ -1,0 +1,86 @@
+import "dotenv/config";
+
+// like fetch options, but body is any JSON-serializable value
+interface DiscordRequestOptions extends Omit<RequestInit, "body"> {
+	body?: unknown;
+}
+
+export async function DiscordRequest(endpoint: string, options: DiscordRequestOptions): Promise<Response> {
+	// append endpoint to root API URL
+	const url = "https://discord.com/api/v10/" + endpoint;
+	// Stringify payloads
+	const { body, ...rest } = options;
+	// Use fetch to make requests
+	const res = await fetch(url, {
+		headers: {
+			Authorization: `Bot ${process.env.DISCORD_TOKEN}`,
+			"Content-Type": "application/json; charset=UTF-8",
+			"User-Agent":
+				"DiscordBot (https://github.com/discord/discord-example-app, 1.0.0)",
+		},
+		...rest,
+		body: body ? JSON.stringify(body) : undefined,
+	});
+	// throw API errors
+	if (!res.ok) {
+		const data = await res.json();
+		console.log(res.status);
+		throw new Error(JSON.stringify(data));
+	}
+	// return original response
+	return res;
+}
+
+export async function InstallGlobalCommands(appId: string, commands: object[]): Promise<void> {
+	// API endpoint to overwrite global commands
+	const endpoint = `applications/${appId}/commands`;
+
+	try {
+		// This is calling the bulk overwrite endpoint: https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands
+		await DiscordRequest(endpoint, { method: "PUT", body: commands });
+	} catch (err) {
+		console.error(err);
+	}
+}
+
+const LEADERBOARD_COMMAND = {
+	name: "leaderboard",
+	description: "Show the leaderboard",
+	type: 1,
+	integration_types: [0, 1],
+	contexts: [0, 1, 2],
+};
+
+const RANDOM_COMMAND = {
+	name: "random",
+	description: "Try a random problem",
+	type: 1,
+	integration_types: [0, 1],
+	contexts: [0, 1, 2],
+	options: [
+		{
+			type: 3, // STRING
+			name: "difficulty",
+			description: "Problem difficulty",
+			required: true,
+			choices: [
+				{ name: "Easy", value: "easy" },
+				{ name: "Medium", value: "medium" },
+				{ name: "Hard", value: "hard" },
+			],
+		},
+	],
+};
+
+const DAILY = {
+	name: "daily",
+	description: "Todays leetcode question",
+	type: 1,
+	integration_types: [0, 1],
+	contexts: [0, 1, 2],
+};
+
+const ALL_COMMANDS = [LEADERBOARD_COMMAND, RANDOM_COMMAND, DAILY];
+
+if (!process.env.APP_ID) throw new Error("APP_ID is not set in .env");
+InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);

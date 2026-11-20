@@ -287,47 +287,6 @@ docs/
   adr/                     ← why each decision was made
 ```
 
-**Supporting practices**
-- Unit tests on `core/` and a GitHub Actions workflow that runs them
-- Architecture Decision Records in `docs/adr/` (including why *not* microservices or event sourcing)
-- Database migrations instead of `CREATE TABLE IF NOT EXISTS`
-- Structured logging (stdout for info, stderr for errors)
-- Config via environment variables (Twelve-Factor)
-
----
-
-## 13. Leaderboard redesign
-
-Bring the leaderboard up to the style of the `/random` card: an accent bar that
-means something, a short header, small `-#` metadata text, and emoji buttons.
-This is purely view-layer work (`render_leaderboard` / the leaderboard presenter).
-
-### Main state
-
-`┃` is the container's accent bar. Lines starting with `-#` render as small gray subtext.
-
-```
-┃ ## 🏆 Leaderboard
-┃ -# Week started 3 days ago · goal 10 pts · 2/5 on track
-┃ ───────────────────────────────────────────
-┃ 🥇 **austin** · 14 pts ✅
-┃ -# ▰▰▰▰▰▰▰▰▰▰  +2E · +2M · +1H
-┃
-┃ 🥈 **bob** · 10 pts ✅
-┃ -# ▰▰▰▰▰▰▰▰▰▰  +1E · +3M
-┃
-┃ 🥉 **carl** · 7 pts
-┃ -# ▰▰▰▰▰▰▰▱▱▱  7/10 · +1E · +2M
-┃
-┃ 4. **dana** · 3 pts
-┃ -# ▰▰▰▱▱▱▱▱▱▱  3/10 · +1M
-┃
-┃ 5. **eli** · 0 pts
-┃ -# ▱▱▱▱▱▱▱▱▱▱  nothing yet 👀
-┃ ───────────────────────────────────────────
-┃ -# refreshed just now
-┃ [ 🙋 Join ]  [ 🔄 Refresh ]
-```
 
 ### Other states
 
@@ -350,20 +309,3 @@ No players yet: gray bar and a call to action.
 ┃ [ 🙋 Join ]
 ```
 
-### Rules
-
-| Element | Behavior |
-|---|---|
-| Rank | 🥇 🥈 🥉 for the top 3, then `4.`, `5.`, … |
-| Name line | `**name** · N pts`, with ✅ once at or above the goal (no ❌) |
-| Progress bar | 10 segments, filled in proportion to `points / threshold`, capped at full |
-| Breakdown | Gained this week per difficulty (`+2E · +1M`); zero counts omitted |
-| Progress text | `N/goal` shown only while below the goal; `nothing yet 👀` at 0 |
-| Accent color | Green if everyone passed, LeetCode orange `0xffa116` if some, red if none, gray if no players |
-| Subheader | `<t:week_start:R>` relative timestamp, goal from `games.threshold`, `X/Y on track` |
-| Footer | `<t:now:R>` so viewers see when Refresh last ran |
-| Buttons | `🙋 Join` (primary), `🔄 Refresh` (secondary), using `ButtonStyleTypes` constants |
-| Failed lookup | Player whose LeetCode stats couldn't be fetched shows 0 pts (no crash) |
-
-Discord renders `<t:…:R>` timestamps live in each viewer's timezone, so
-"3 days ago" and "just now" update without a refresh.
